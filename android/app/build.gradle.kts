@@ -1,15 +1,21 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.example.funny_bot"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973" // Set NDK version
-    // If you need to update or manage other NDK versions, consider keeping the flutter.ndkVersion reference.
+    namespace = "com.example.funny_bot"  // Your app's namespace
+    compileSdk = 35  // Set to your desired compile SDK version (e.g., 33 for Android 13)
+    ndkVersion = "27.2.12479018"  // Set NDK version if required
+
+    defaultConfig {
+        applicationId = "com.example.funny_bot"
+        minSdk = 21  // Set your minimum SDK version
+        targetSdk = 35  // Set your target SDK version
+        versionCode = 1  // Increment with each release
+        versionName = "1.0.0"  // Your version name
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -20,24 +26,13 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
-    defaultConfig {
-        // Specify your own unique Application ID
-        applicationId = "com.example.funny_bot"
-        // Flutter SDK version settings
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-    }
-
     buildTypes {
         release {
-            // Update with your own signing configuration for release
-            signingConfig = signingConfigs.getByName("debug") // Change for actual release
+            signingConfig = signingConfigs.getByName("debug")  // Update signing configuration for release
         }
     }
 }
 
 flutter {
-    source = "../.."  // Ensure this points to the correct Flutter source directory
+    source = "../.."  // Ensure this points to your Flutter source directory
 }

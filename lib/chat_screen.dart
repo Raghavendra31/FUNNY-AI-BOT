@@ -1,70 +1,93 @@
-import 'dart:async'; // Import for asynchronous programming
-import 'dart:convert'; // Import for JSON encoding/decoding
-import 'package:flutter/material.dart'; // Import Flutter material design package
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import dotenv for environment variables
-import 'package:http/http.dart' as http; // Import HTTP package for API requests
-import 'package:logging/logging.dart'; // Import logging package
-import 'package:shared_preferences/shared_preferences.dart'; // Import for local data storage
-import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-To-Speech functionality
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
-// ChatScreen is the main widget showing the chat UI
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
 
   @override
-  ChatScreenState createState() => ChatScreenState(); // Create the state object
+  ChatScreenState createState() => ChatScreenState();
 }
 
-// State class for ChatScreen
 class ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _controller = TextEditingController(); // Controller for input field
-  final List<ChatMessage> _messages = []; // List to store messages (user and bot)
+  final TextEditingController _controller = TextEditingController();
+  final List<ChatMessage> _messages = [];
   final List<Map<String, String>> _chatHistory = [
     {
       "role": "system",
       "content": "You are a funny chatbot. Respond to all user inputs with humor. Also remember user's name if they tell you."
     },
-  ]; // Initial system prompt to guide chatbot behavior
-  bool _isTyping = false; // Boolean to track if the bot is currently typing
-  DateTime? _lastRequestTime; // Last time a request was sent
-  final Duration _rateLimitDuration = const Duration(seconds: 3); // Minimum gap between requests
-  final _logger = Logger('ChatScreen'); // Logger instance for logging
-
-  // Voice output using text-to-speech
-  late FlutterTts _flutterTts; 
+  ];
+  bool _isTyping = false;
+  DateTime? _lastRequestTime;
+  final Duration _rateLimitDuration = const Duration(seconds: 3);
+  final _logger = Logger('ChatScreen');
+  late FlutterTts _flutterTts;
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  String _speechText = '';
 
   @override
   void initState() {
     super.initState();
-    _loadMessages(); // Load saved messages on startup
-    _flutterTts = FlutterTts(); // Initialize FlutterTts instance
+    _loadMessages();
+    _flutterTts = FlutterTts();
+    _speech = stt.SpeechToText();
   }
 
-  // Save chat messages to shared preferences (local storage)
+  Future<void> _startListening() async {
+    bool available = await _speech.initialize(
+      onStatus: (status) => _logger.info("Speech status: $status"),
+      onError: (error) => _logger.warning("Speech error: $error"),
+    );
+    if (available) {
+      setState(() => _isListening = true);
+      _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _speechText = result.recognizedWords;
+            _controller.text = _speechText;
+          });
+        },
+      );
+    }
+  }
+
+  void _stopListening() {
+    _speech.stop();
+    setState(() => _isListening = false);
+  }
+
   Future<void> _saveMessages() async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> jsonMessages = _messages.map((msg) => jsonEncode(msg.toJson())).toList();
+    List<String> jsonMessages =
+        _messages.map((msg) => jsonEncode(msg.toJson())).toList();
     await prefs.setStringList('chatMessages', jsonMessages);
   }
 
-  // Load chat messages from shared preferences (if any)
   Future<void> _loadMessages() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String>? jsonMessages = prefs.getStringList('chatMessages');
     if (jsonMessages != null) {
       setState(() {
-        _messages.addAll(jsonMessages.map((jsonMsg) => ChatMessage.fromJson(jsonDecode(jsonMsg))));
+        _messages.addAll(
+            jsonMessages.map((jsonMsg) => ChatMessage.fromJson(jsonDecode(jsonMsg))));
       });
     }
   }
 
-  // Send a message to the chatbot API and get a response
   Future<void> _sendMessage(String text) async {
-    if (_isTyping || text.trim().isEmpty) return; // Prevent sending if already typing or text is empty
+    if (_isTyping || text.trim().isEmpty) return;
 
     final now = DateTime.now();
-    if (_lastRequestTime != null && now.difference(_lastRequestTime!) < _rateLimitDuration) {
-      // If sending too fast, show a warning message
+    if (_lastRequestTime != null &&
+        now.difference(_lastRequestTime!) < _rateLimitDuration) {
       setState(() {
         _messages.insert(
           0,
@@ -77,21 +100,20 @@ class ChatScreenState extends State<ChatScreen> {
       _saveMessages();
       return;
     }
-    _lastRequestTime = now; // Update the last request time
+    _lastRequestTime = now;
 
     setState(() {
-      _messages.insert(0, ChatMessage(text: text, isUser: true)); // Add user message
-      _chatHistory.add({"role": "user", "content": text}); // Add user message to chat history
-      _isTyping = true; // Set typing status
-      _controller.clear(); // Clear the input box
+      _messages.insert(0, ChatMessage(text: text, isUser: true));
+      _chatHistory.add({"role": "user", "content": text});
+      _isTyping = true;
+      _controller.clear();
     });
-    _saveMessages(); // Save messages locally
+    _saveMessages();
 
     try {
       final apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
-      if (apiKey.isEmpty) throw Exception('GROQ_API_KEY is missing.'); // Ensure API key is available
+      if (apiKey.isEmpty) throw Exception('GROQ_API_KEY is missing.');
 
-      // Send HTTP POST request to Groq API
       final response = await http.post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
@@ -99,7 +121,7 @@ class ChatScreenState extends State<ChatScreen> {
           'Authorization': 'Bearer $apiKey',
         },
         body: jsonEncode({
-          "model": "meta-llama/llama-4-scout-17b-16e-instruct", // Model name
+          "model": "meta-llama/llama-4-scout-17b-16e-instruct",
           "messages": _chatHistory,
           "temperature": 0.9,
           "top_p": 1.0,
@@ -111,24 +133,20 @@ class ChatScreenState extends State<ChatScreen> {
       _logger.info('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // If successful, parse and show bot reply
         final data = jsonDecode(response.body);
-        final reply = data['choices'][0]['message']['content'] ?? 
+        final reply = data['choices'][0]['message']['content'] ??
             "🤖 Oops! I couldn't think of a funny reply. Try again!";
         setState(() {
-          _messages.insert(0, ChatMessage(text: reply, isUser: false)); // Show bot reply
-          _chatHistory.add({"role": "assistant", "content": reply}); // Update chat history
+          _messages.insert(0, ChatMessage(text: reply, isUser: false));
+          _chatHistory.add({"role": "assistant", "content": reply});
         });
-        _speak(reply); // Speak the reply using TTS
-        _saveMessages(); // Save updated chat
+        _saveMessages();
       } else {
-        // If API returns error
         final errorData = jsonDecode(response.body);
         final errorMsg = errorData['error']['message'] ?? 'Unknown API error';
         throw Exception('API Error: $errorMsg');
       }
     } catch (e) {
-      // Handle exceptions
       _logger.severe('Error occurred: $e');
       setState(() {
         _messages.insert(
@@ -141,11 +159,10 @@ class ChatScreenState extends State<ChatScreen> {
       });
       _saveMessages();
     } finally {
-      setState(() => _isTyping = false); // Reset typing status
+      setState(() => _isTyping = false);
     }
   }
 
-  // Speak the text using text-to-speech
   Future<void> _speak(String text) async {
     await _flutterTts.speak(text);
     _logger.fine("Speaking: $text");
@@ -153,24 +170,22 @@ class ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _controller.dispose(); // Dispose input controller
+    _controller.dispose();
     super.dispose();
   }
 
-  // Build UI for each message bubble
   Widget _buildMessage(String text, bool isUser) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start, // Align based on user/bot
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           Flexible(
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isUser
-                    ? Colors.teal[600]!.withValues()
-                    : Colors.blue[50]!.withValues(), // Different color for user and bot
+                color: isUser ? Colors.teal[600] : Colors.blue[50],
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -179,7 +194,7 @@ class ChatScreenState extends State<ChatScreen> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: isUser ? Colors.teal.withValues() : Colors.grey.withValues(),
+                    color: isUser ? Colors.teal.shade300 : Colors.grey.shade400,
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -216,7 +231,6 @@ class ChatScreenState extends State<ChatScreen> {
             tooltip: 'Clear chat',
             onPressed: () async {
               if (_messages.isNotEmpty) {
-                // Confirm clearing chat
                 final confirm = await showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -244,7 +258,7 @@ class ChatScreenState extends State<ChatScreen> {
                     });
                   });
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.remove('chatMessages'); // Clear saved messages
+                  await prefs.remove('chatMessages');
                 }
               }
             },
@@ -255,15 +269,15 @@ class ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: ListView.builder(
-              reverse: true, // Show newest message at the bottom
+              reverse: true,
               padding: const EdgeInsets.only(bottom: 8),
-              itemCount: _messages.length + (_isTyping ? 1 : 0), // Add extra item if typing
+              itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
                 if (_isTyping && index == 0) {
-                  return _buildMessage('🤖 is typing...', false); // Typing indicator
+                  return _buildMessage('🤖 is typing...', false);
                 }
                 final message = _messages[index - (_isTyping ? 1 : 0)];
-                return _buildMessage(message.text, message.isUser); // Build message bubble
+                return _buildMessage(message.text, message.isUser);
               },
             ),
           ),
@@ -271,6 +285,24 @@ class ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
+                IconButton(
+                  icon: Icon(_isListening ? Icons.mic_off : Icons.mic),
+                  color: Colors.teal,
+                  onPressed: _isListening ? _stopListening : _startListening,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up),
+                  color: Colors.teal,
+                  tooltip: 'Speak last response',
+                  onPressed: () {
+                    for (final msg in _messages) {
+                      if (!msg.isUser) {
+                        _speak(msg.text);
+                        break;
+                      }
+                    }
+                  },
+                ),
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -291,10 +323,10 @@ class ChatScreenState extends State<ChatScreen> {
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.send),
                         color: Colors.teal,
-                        onPressed: () => _sendMessage(_controller.text), // Send message when button pressed
+                        onPressed: () => _sendMessage(_controller.text),
                       ),
                     ),
-                    onSubmitted: _sendMessage, // Send when pressing 'enter'
+                    onSubmitted: _sendMessage,
                   ),
                 ),
               ],
@@ -306,20 +338,17 @@ class ChatScreenState extends State<ChatScreen> {
   }
 }
 
-// Model class for ChatMessage (user or bot)
 class ChatMessage {
   final String text;
   final bool isUser;
 
   const ChatMessage({required this.text, required this.isUser});
 
-  // Convert ChatMessage to JSON
   Map<String, dynamic> toJson() => {
         'text': text,
         'isUser': isUser,
       };
 
-  // Create ChatMessage from JSON
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         text: json['text'],
         isUser: json['isUser'],

@@ -2,6 +2,7 @@
     package="com.example.funny_bot"> <!-- change this to your actual package name -->
 
     <!-- ✅ Required to access the internet -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
