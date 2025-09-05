@@ -18,6 +18,7 @@ dependencies:
   logger: ^1.0.0
   speech_to_text: ^7.0.0
   permission_handler: ^11.3.0
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
