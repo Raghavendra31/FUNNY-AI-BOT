@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.funny_bot"  // Your app's namespace
-    compileSdk = 35  // Set to your desired compile SDK version (e.g., 33 for Android 13)
+    compileSdk = 36  // Set to your desired compile SDK version (e.g., 33 for Android 13)
     ndkVersion = "27.2.12479018"  // Set NDK version if required
 
     defaultConfig {
         applicationId = "com.example.funny_bot"
-        minSdk = 21  // Set your minimum SDK version
+        minSdk = flutter.minSdkVersion  // Set your minimum SDK version
         targetSdk = 35  // Set your target SDK version
         versionCode = 1  // Increment with each release
         versionName = "1.0.0"  // Your version name
