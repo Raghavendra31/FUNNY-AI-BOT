@@ -452,6 +452,7 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 minLines: 1,
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Colors.black87, fontSize: 16),
                 decoration: InputDecoration(
                   hintText: 'Type something funny...',
                   filled: true,

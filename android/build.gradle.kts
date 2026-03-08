@@ -3,6 +3,12 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    tasks.withType<JavaCompile> {
+        sourceCompatibility = "11"
+        targetCompatibility = "11"
+        options.compilerArgs.add("-Xlint:-options")
+    }
 }
 
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
@@ -21,15 +27,21 @@ tasks.register<Delete>("clean") {
 }
 
 buildscript {
-    val kotlinVersion = "1.8.10"  // Kotlin version
+    val kotlinVersion = "2.1.0"  // Kotlin version
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
         // Android Gradle plugin version
-        classpath("com.android.tools.build:gradle:7.0.4")  // Ensure compatibility with your Gradle version
+        classpath("com.android.tools.build:gradle:8.7.0")  // Ensure compatibility with your Gradle version
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
         // Flutter Gradle plugin, add if missing:
     }
+}
+
+tasks.withType<JavaCompile> {
+    sourceCompatibility = "11"
+    targetCompatibility = "11"
+    options.compilerArgs.add("-Xlint:-options")
 }
