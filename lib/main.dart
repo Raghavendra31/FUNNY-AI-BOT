@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Funny Groq ChatBot 🤖',
-      themeMode: ThemeMode.system, // 👈 Detects system themee
+      themeMode: ThemeMode.system, // 👈 Detects system theme
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.teal,
